@@ -1,95 +1,56 @@
 package com.feebami.retiredsentinel
 
-import android.os.SystemClock
-import android.util.Log
+/** Decision for one visible approach. This intentionally evaluates people separately. */
+data class VisitorObservation(
+    val trackId: Int,
+    val identity: String,
+    val carryingObject: Boolean = false,
+    val approaching: Boolean = true
+)
+
+data class VisitorAlert(val trackId: Int, val identity: String, val carryingObject: Boolean)
 
 class SecurityState(
     private val safeIdentities: List<String>,
     incidentTimeoutSec: Long,
     gracePeriodSec: Long,
+    private val alertUnknown: () -> Boolean = { true },
+    private val alertKnown: () -> Boolean = { false },
+    private val alertObjects: () -> Boolean = { true },
+    private val alertKnownObjects: () -> Boolean = { true },
 ) {
-    companion object {
-        private const val TAG = "SecurityState"
-    }
+    private val incidentTimeoutMs = incidentTimeoutSec.coerceAtLeast(1) * 1000L
+    private val confirmationMs = gracePeriodSec.coerceAtLeast(0) * 1000L
+    private data class Visit(
+        val startedAt: Long,
+        var lastSeen: Long,
+        var identity: String = "Unknown",
+        var objectFrames: Int = 0,
+        var alerted: Boolean = false
+    )
+    private val visits = mutableMapOf<Int, Visit>()
 
-    private val incidentTimeoutMs = incidentTimeoutSec * 1000L
-    private val gracePeriodMs = gracePeriodSec * 1000L
-    private var incidentStartTime = 0L
-    private var lastSightTime = 0L
-    private val safeThreshold = 3
-    private var safeIdentitySeen = false
-    private var alertedThisIncident = false
+    /** Returns new alerts only; one visitor can never suppress another visitor. */
+    fun update(current: List<VisitorObservation>, now: Long = android.os.SystemClock.elapsedRealtime()): List<VisitorAlert> {
+        visits.entries.removeAll { now - it.value.lastSeen > incidentTimeoutMs }
+        val alerts = mutableListOf<VisitorAlert>()
+        for (person in current) {
+            if (!person.approaching) continue
+            val visit = visits.getOrPut(person.trackId) { Visit(now, now) }
+            visit.lastSeen = now
+            if (person.identity in safeIdentities) visit.identity = person.identity
+            if (person.carryingObject) visit.objectFrames++
+            if (visit.alerted || now - visit.startedAt < confirmationMs) continue
 
-    // Tracks how many times each identity has been seen during the current incident
-    private val identityCounts = mutableMapOf<String, Int>()
-
-    init {
-        resetIncident()
-    }
-
-    private fun resetIncident() {
-        incidentStartTime = 0L
-        lastSightTime = 0L
-        safeIdentitySeen = false
-        identityCounts.clear()
-        alertedThisIncident = false
-    }
-
-    /**
-     * Updates state based on current frame identities.
-     * Returns true if an Intruder Alert should be triggered right now.
-     */
-    fun update(currentIdentities: Set<String>): Boolean {
-        val now = SystemClock.elapsedRealtime()
-
-        // 1. Incident Timeout check
-        if (lastSightTime > 0 && currentIdentities.isEmpty()) {
-            if ((now - lastSightTime) > incidentTimeoutMs) {
-                Log.i(TAG, "Room empty for ${incidentTimeoutMs / 1000}s. Ending incident.")
-                resetIncident()
-                return false
+            val unknownAlert = visit.identity == "Unknown" && alertUnknown()
+            val knownAlert = visit.identity != "Unknown" && alertKnown()
+            val carryingAlert = visit.objectFrames >= 2 && alertObjects() &&
+                (visit.identity == "Unknown" || alertKnownObjects())
+            if (unknownAlert || knownAlert || carryingAlert) {
+                visit.alerted = true
+                alerts += VisitorAlert(person.trackId, visit.identity, visit.objectFrames >= 2)
             }
         }
-
-        // 2. Update Timings & Check for Safe People
-        if (currentIdentities.isNotEmpty()) {
-            lastSightTime = now
-            if (incidentStartTime == 0L) {
-                Log.i(TAG, "New incident started.")
-                incidentStartTime = now
-            }
-
-            // If we haven't confirmed a safe identity yet, update counts and check threshold
-            if (!safeIdentitySeen) {
-                for (identity in currentIdentities) {
-                    if (identity in safeIdentities) {
-                        // Increment the count for this specific identity
-                        val currentCount = (identityCounts[identity] ?: 0) + 1
-                        identityCounts[identity] = currentCount
-
-                        // Check if they have reached the required robustness threshold
-                        if (currentCount >= safeThreshold) {
-                            Log.i(TAG, "Safe identity '$identity' confirmed ($currentCount frames). Incident marked safe.")
-                            safeIdentitySeen = true
-                            break
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Grace Period
-        if ((now - incidentStartTime) < gracePeriodMs) {
-            return false
-        }
-
-        // 4. Intruder Alert Logic
-        // We are past the grace period. If no safe identity has reached the threshold, it's an intruder.
-        if (!safeIdentitySeen && incidentStartTime > 0L && !alertedThisIncident) {
-            Log.w(TAG, "!!! Intruder Alert: No safe identity confirmed within grace period !!!")
-            alertedThisIncident = true
-            return true
-        }
-        return false
+        return alerts
     }
 }

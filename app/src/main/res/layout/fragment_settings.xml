@@ -74,11 +74,10 @@
             android:layout_marginBottom="16dp"
             android:background="?attr/colorOutlineVariant" />
 
-        <!-- SECURITY RULES SETTINGS -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Security Rules"
+            android:text="Visitor alerts"
             android:textAppearance="?attr/textAppearanceTitleMedium"
             android:paddingBottom="8dp"
             tools:ignore="HardcodedText" />
@@ -95,6 +94,57 @@
                 android:layout_height="wrap_content"
                 android:inputType="textCapWords|textNoSuggestions" />
 
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchAlertUnknown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Alert for unknown approaching people"
+            tools:ignore="HardcodedText" />
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchAlertKnown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Alert for recognized people"
+            tools:ignore="HardcodedText" />
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchAlertObjects"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Alert when a person may be carrying something"
+            tools:ignore="HardcodedText" />
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchAlertKnownObjects"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Alert for carried objects even with a known person"
+            tools:ignore="HardcodedText" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Carried-object and parcel detection needs a compatible model and is currently unavailable."
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:ignore="HardcodedText" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Stairway detection area (left,top,right,bottom; 0–1)"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            tools:ignore="HardcodedText" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editStairRoi"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="0,0,1,1"
+            android:inputType="text"
+            tools:ignore="HardcodedText" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <TextView
@@ -266,6 +316,19 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
+            <Button
+                android:id="@+id/buttonTestTelegram"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Send Telegram test"
+                tools:ignore="HardcodedText" />
+            <TextView
+                android:id="@+id/textTelegramStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:accessibilityLiveRegion="polite"
+                android:text="Open your bot chat in Telegram and tap Start before testing."
+                tools:ignore="HardcodedText" />
         </LinearLayout>
 
     </LinearLayout>

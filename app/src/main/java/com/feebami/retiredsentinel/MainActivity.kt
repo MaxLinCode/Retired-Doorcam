@@ -101,7 +101,11 @@ class MainActivity : AppCompatActivity() {
         securityState = SecurityState(
             safeIdentities = safeNames,
             incidentTimeoutSec = AppSettings.incidentTimeoutSec,
-            gracePeriodSec = AppSettings.gracePeriodSec
+            gracePeriodSec = 1,
+            alertUnknown = { AppSettings.alertUnknown },
+            alertKnown = { AppSettings.alertKnown },
+            alertObjects = { false },
+            alertKnownObjects = { false }
         )
         telegramSender = TelegramAlertSender()
 
@@ -204,26 +208,30 @@ class MainActivity : AppCompatActivity() {
             // 2. Run detectors for every person in the frame
             val personBoxes = personDetector.detect(rotated)
             val allBoxes = mutableListOf<BoundingBox>()
-            val identities = mutableSetOf<String>()
-            for (personBox in personBoxes) {
+            val observations = mutableListOf<VisitorObservation>()
+            for ((trackId, personBox) in personDetector.tracksFor(personBoxes)) {
                 val faceBox = faceDetector.detect(rotated, personBox)
                 if (faceBox == null) {
                     allBoxes.add(personBox)
-                    identities.add("Unknown")
+                    observations.add(VisitorObservation(trackId, "Unknown", approaching = isApproaching(trackId, personBox)))
                 } else {
                     val result = identityDetector.identify(rotated, faceBox)
                     allBoxes.add(personBox)
                     allBoxes.add(faceBox.copy(label = result.name, confidence = result.bestScore))
-                    identities.add(result.name)
+                    observations.add(VisitorObservation(trackId, result.name, approaching = isApproaching(trackId, personBox)))
                 }
             }
 
-            val alert = securityState.update(identities)
-
-            if (alert) {
-                binding.overlayView.addLogEntry("!!! Intruder Alert !!!")
-                Log.i("MainActivity", "Intruder Alert triggered! Encoding video from ${frameBuffer.size} frames.")
-                encodeVideoFromFrames(frameBuffer.toList(), actualFps)
+            val alerts = securityState.update(observations)
+            if (alerts.isNotEmpty()) {
+                val alert = alerts.first()
+                val caption = buildString {
+                    append(if (alert.identity == "Unknown") "Unknown visitor approaching" else "${alert.identity} approaching")
+                    append("\nCarried-object detection unavailable (model not installed)")
+                }
+                binding.overlayView.addLogEntry(caption.replace("\n", " — "))
+                val eventFrames = frameBuffer.toList()
+                videoEncoderExecutor.execute { encodeVideoFromFrames(eventFrames, actualFps, caption) }
                 frameBuffer.clear()
             }
             // 3. Draw to the screen
@@ -243,16 +251,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun encodeVideoFromFrames(frames: List<Bitmap>, fps: Double) {
+    // A fixed-view motion heuristic: image coordinates grow downwards, so rising box centers indicate ascent.
+    private val recentPersonY = mutableMapOf<Int, Float>()
+    private fun isApproaching(trackId: Int, box: BoundingBox): Boolean {
+        val previous = recentPersonY.put(trackId, box.cy)
+        return previous == null || box.cy < previous - box.h * 0.02f
+    }
+
+    private fun encodeVideoFromFrames(frames: List<Bitmap>, fps: Double, caption: String) {
         if (frames.isEmpty()) return
 
         try {
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val videoDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+            val videoDir = File(getExternalFilesDir(Environment.DIRECTORY_MOVIES), "Doorcam")
             if (!videoDir.exists()) {
                 videoDir.mkdirs()
             }
-            val videoFile = File(videoDir, "Intruder_Alert_$timeStamp.mp4")
+            val videoFile = File(videoDir, "Visitor_$timeStamp.mp4")
             val encoderFps = fps.coerceAtLeast(1.0).toInt()
             val encoder = AndroidSequenceEncoder.createSequenceEncoder(videoFile, encoderFps)
 
@@ -269,7 +284,15 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this@MainActivity, "Video saved: ${videoFile.absolutePath}", Toast.LENGTH_LONG).show()
             }
 
-            telegramSender.sendVideoAlert(this,videoFile)
+            telegramSender.sendVideoAlert(this, videoFile, caption) { status ->
+                runOnUiThread {
+                    if (!isDestroyed && !isFinishing) {
+                        binding.overlayView.addLogEntry(status)
+                        binding.overlayView.invalidate()
+                        Toast.makeText(this, status, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Video encoding failed", e)
             frames.forEach { it.recycle() }
@@ -311,5 +334,6 @@ class MainActivity : AppCompatActivity() {
             frameBuffer.clear()
         }
         cameraExecutor.shutdown()
+        videoEncoderExecutor.shutdown()
     }
 }

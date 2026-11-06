@@ -14,3 +14,13 @@
 .cxx
 local.properties
 /app/release
+# Local IDE state, caches, generated packages, and signing material
+.idea/
+.kotlin/
+**/build/
+*.apk
+*.aab
+*.jks
+*.keystore
+.env
+.env.*

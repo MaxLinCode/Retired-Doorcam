@@ -1,89 +1,76 @@
-# Retired-Sentinel (Native Android)
+# Retired Doorcam
 
-Give your old Android phone a new career in private security.
+A native Android camera prototype for an old phone, currently being developed for a Samsung Galaxy S8 viewing apartment stairs through a window. Person detection and face matching run on the phone. Optional alerts upload recorded clips to Telegram.
 
-Retired-Sentinel is a fully native Android application that turns any spare smartphone into a smart security camera. It detects intruders, recognizes known faces, and sends you video evidence via Telegram when something's amiss.
+## Clone and run on a Mac
 
-Unlike most modern smart cameras, this app is **100% free, open-source, and cloud-free**. All Machine Learning inference happens locally on the device's hardware.
+Install Android Studio with support for Android Gradle Plugin 9.1, Android SDK Platform 36, and Java 21. The Gradle wrapper is included; no separate Gradle installation is needed.
 
-## 🎬 Demo
+```bash
+git clone https://github.com/MaxLinCode/Retired-Doorcam.git
+cd Retired-Doorcam
+```
 
-| Intruder Detected | Safe Identity Verified |
-|:---:|:---:|
-| ![Intruder detected](intruder.gif) | ![Safe ID verified](secure_id.gif) |
+Open this directory in Android Studio and let Gradle sync. Select an installed Java 21 JDK under **Settings → Build, Execution, Deployment → Build Tools → Gradle** if needed. Android Studio creates the machine-specific `local.properties` file; keep it out of Git. The project supports Android 7.0 (API 24) and newer.
 
-*Left: The system detects an unrecognized person and logs an `!!! Intruder Alert !!!` which triggers an MP4 video upload to Telegram. Right: The system identifies an authorized user and suppresses the alarm.*
+On the S8, enable Developer options by tapping **Build number** seven times under **About phone → Software information**, then enable **USB debugging**. Connect with a USB data cable and accept the debugging prompt. Select the phone in Android Studio and click **Run** to install the app and view logs in Logcat.
 
-## ✨ Key Features
+For command-line use, install platform tools with Homebrew:
 
-- **100% On-Device Processing**: No cloud subscriptions, no data harvesting. All video and facial data stays on your phone.
-- **Advanced ML Pipeline**: Uses CameraX, YOLO26 for fast person detection, Google ML Kit for face cropping, and FaceNet for high-accuracy identity matching.
-- **Smart Security Logic**: Configurable grace periods, incident timeouts, and safe-identity thresholds virtually eliminate false alarms.
-- **Automated Telegram Alerts**: Instantly encodes a rolling buffer of frames into an MP4 and sends the video evidence directly to your Telegram chat.
-- **Thermal & Battery Protection**: Fully configurable camera resolution and FPS limiters to keep older devices cool during 24/7 operation.
-- **Easy Enrollment**: Add safe identities directly in the app by uploading photos straight from your gallery.
+```bash
+brew install --cask android-platform-tools
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+./gradlew :app:assembleDebug
+adb devices
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb logcat -s MainActivity AndroidRuntime
+```
 
-## 📦 Installation
+The APK contains the local models and native libraries and is about 120 MB. Installing with `-r` preserves app data when the signing key matches. The cloud debug APK and a Mac build may use different debug keys: if Android reports `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, uninstalling the old app allows installation but deletes its settings and enrolled faces. Record settings and retain enrollment photos before doing so.
 
-This project is now a standalone Android app (no Termux or Python required!).
+## Current features
 
-1. Go to the [Releases](../../releases) tab on the right side of this repository.
-2. Download the latest `app-release.apk` directly to your Android device.
-3. Open the file to install it. *(You may need to allow "Install from Unknown Sources" in your Android settings).*
-4. Grant the app **Camera** and **Storage** permissions when prompted (Storage is required to save the MP4 video evidence locally).
+- CameraX rear-camera preview with person boxes, using YOLO26.
+- Gallery photo enrollment and FaceNet identity matching, with ML Kit face detection.
+- Basic person tracking and separate visitor alert decisions.
+- Independent unknown-visitor and recognized-person notification switches.
+- Telegram video delivery, a **Send Telegram test** button, and visible delivery/error status.
+- Adjustable camera resolution and analysis FPS, defaulting to 480p and 3 FPS.
+- Local clips in the app-specific external `Movies/Doorcam` directory.
 
-## 🚀 Setup Guide
+## Setup and testing
 
-### 1. Configure Telegram Alerts (Optional but recommended)
-To receive video alerts, you need to connect the app to a Telegram Bot:
-1. Open the Telegram app and search for `@BotFather`.
-2. Send `/newbot` and follow the prompts to get your **Bot API Token**.
-3. Start a chat with your new bot.
-4. Search for `@userinfobot` to get your personal **Chat ID**.
-5. Open the Retired-Sentinel app, go to Settings, and paste your Token and Chat ID.
+1. Grant camera permission.
+2. For Telegram, create a bot with `@BotFather`. Paste its token in **Bot Token** and your own numeric ID from `@userinfobot` in **Chat ID**. Open your created bot's chat from that same account and tap **Start**. Enable Telegram alerts and press **Send Telegram test**. Error messages identify token, chat-access, timeout, and network problems. Never share the token or commit it.
+3. Add clear photos in **Upload Images**. Add the exact enrolled names to **Safe Identities** in Settings to use them as recognized visitors.
+4. Start monitoring and keep that screen open. Walk through the view as an unknown person, a known person, and both together. Leave the view empty for about 15 seconds between visits.
+5. Repeat through the actual window in daylight and at night. Check recognition, alert delivery, clip usefulness, reflections, and phone temperature.
 
-### 2. Enroll Safe Identities
-To prevent the alarm from triggering on yourself or your family:
-1. Navigate to the **Enroll** tab in the app.
-2. Tap the `+` button, type a name (e.g., "Alice"), and select a clear portrait photo of them.
-3. The app will generate a secure numerical vector (embedding) of the face. You can add multiple photos of the same person (different lighting/angles) to improve accuracy!
+Captions and upload results appear on the monitoring screen. The Telegram test sends a text message independently of detection and recording, helping distinguish connection issues from camera logic.
 
-### 3. Adjust Security Rules
-In the **Settings** tab, configure the app for your specific environment:
-- **Grace Period:** How long an unknown person can be in the room before the alarm fires.
-- **Incident Timeout:** How long the room must be completely empty before the system resets.
-- **Person Detection Confidence Threshold:** Minimum confidence for YOLO to consider a person detected.
-- **Identity Match Threshold:** How closely a detected face must match an enrolled identity to be considered "safe".
-### 4. Arm the Camera
-Prop the phone up, plug it into power, and let it run. The screen will show the live feed, current FPS, thermal headroom, and bounding boxes.
+## Prototype limitations
 
-## ⚙️ Architecture & Pipeline
+- **Carried-object and delivery detection are not implemented.** Their settings are reserved for future model integration and do not activate a detector.
+- The stairway region field is saved but does not filter detections yet.
+- Direction detection is an experimental upward-image-motion heuristic; there is no direction calibration yet.
+- Tracking can change IDs after occlusion; recognition is not yet confirmed across multiple frames.
+- Clips use a small sampled frame buffer preceding the alert, rather than recording the full visit. Only the first alert in a frame is included in its clip caption.
+- Background monitoring, event-history UI, automatic storage cleanup, and upload retries are not implemented. Returning from a backgrounded monitoring screen may require restarting monitoring.
+- Thermal headroom display requires Android 11; it is unavailable on older stock S8 software.
 
-**The ML Pipeline:**
-`CameraX Stream` → `YOLOv8 (Person Detection)` → `Google ML Kit (Face Crop)` → `FaceNet (Embedding Match)` → `Security State Machine`
+Treat this version as a development prototype. On-device inference does not prevent recognition errors. Face embeddings are stored in app-private storage; Telegram receives clips when enabled. Android backup behavior follows the application's configured backup rules.
 
-**The Rolling Buffer:**
-The app maintains a continuous memory buffer of frames based on your Grace Period. When an alert triggers, it takes those exact frames, hands them to `JCodec` to encode a local `.mp4` file, and uses `OkHttp` to post the video to Telegram. This ensures your alert video actually shows the intruder walking into the frame, rather than starting *after* the alarm triggered.
+## Managed cloud builds
 
-## 🔒 Security & Privacy
+The cloud environment requires Java proxy options and its system certificate store. Use:
 
-This app is built with extreme privacy in mind.
+```bash
+bash build-cloud.sh
+```
 
-- **No Inbound Traffic:** The app does not open any local web servers or ports. It cannot be "hacked into" from the outside.
-- **Only Necessary Outbound Traffic:** The only time the app communicates with the internet is to execute a secure HTTPS POST to Telegram's official API when an alert triggers.
-- **Irreversible Biometrics:** Face embeddings are stored in a local, plain-text JSON file securely in the app's isolated sandbox. Embeddings are mathematically irreversible—meaning no one can reconstruct an image of your face from the data. The original photos you used for enrollment are never saved or uploaded.
+This script uses the managed `/workspace` Java, Android SDK, and Gradle cache, and translates the inherited HTTPS proxy into Java settings. On a Mac, use Android Studio or `./gradlew` directly. No cloud proxy settings are stored in the project's Gradle configuration.
 
-## 🛠️ Troubleshooting & Tips
+## License
 
-- **Overheating / App Crashing:** Running AI continuously is heavy on mobile processors. Go to Settings and lower the **Target FPS** (e.g., to 2 or 3 FPS).
-- **Faces aren't being recognized:** If the camera is placed far away from the subject, the face crops may be too pixelated. Go to settings and increase the **Camera Resolution** to 720p or 1080p to give the FaceNet model more data to work with.
-- **False Alarms:** Increase the "Person detection confidence threshold" if the app is mistaking shadows/furniture for people, or increase the "Identity match threshold" if it is mistaking an intruder for a safe identity.
-
-## 📜 License
-This project is completely free and open-source under the MIT License.
-
-## 🙏 Acknowledgments
-- [Ultralytics](https://ultralytics.com/) for YOLOv8
-- [Facenet-Pytorch](https://github.com/timesler/facenet-pytorch) (Original models adapted for TFLite)
-- [Google ML Kit](https://developers.google.com/ml-kit)
-- [JCodec](http://jcodec.org/) for pure-Java video encoding
+MIT; see [LICENSE](LICENSE).

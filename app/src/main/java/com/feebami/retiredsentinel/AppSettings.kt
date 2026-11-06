@@ -21,6 +21,10 @@ object AppSettings {
     private const val KEY_TELEGRAM_CHAT_ID = "telegram_chat_id"
     private const val KEY_TARGET_FPS = "target_fps"
     private const val KEY_RESOLUTION = "resolution"
+    private const val KEY_ALERT_UNKNOWN = "alert_unknown"
+    private const val KEY_ALERT_KNOWN = "alert_known"
+    private const val KEY_ALERT_OBJECTS = "alert_objects"
+    private const val KEY_ALERT_KNOWN_OBJECTS = "alert_known_objects"
 
     const val DEFAULT_CONF_THRESHOLD = 0.3f
     const val DEFAULT_RECOG_THRESHOLD = 0.6f
@@ -51,6 +55,16 @@ object AppSettings {
         private set
     var resolution: String = DEFAULT_RESOLUTION
         private set
+    var alertUnknown: Boolean = true
+        private set
+    var alertKnown: Boolean = false
+        private set
+    var alertObjects: Boolean = true
+        private set
+    var alertKnownObjects: Boolean = true
+        private set
+    var staircaseRoi: String = ""
+        private set
 
     fun load(context: Context) {
         val p = prefs(context)
@@ -73,6 +87,11 @@ object AppSettings {
             // Load Camera Settings
             targetFps = p.getInt(KEY_TARGET_FPS, DEFAULT_TARGET_FPS)
             resolution = p.getString(KEY_RESOLUTION, DEFAULT_RESOLUTION) ?: DEFAULT_RESOLUTION
+            alertUnknown = p.getBoolean(KEY_ALERT_UNKNOWN, true)
+            alertKnown = p.getBoolean(KEY_ALERT_KNOWN, false)
+            alertObjects = p.getBoolean(KEY_ALERT_OBJECTS, true)
+            alertKnownObjects = p.getBoolean(KEY_ALERT_KNOWN_OBJECTS, true)
+            staircaseRoi = p.getString("staircase_roi", "") ?: ""
 
         } catch (_: Exception) {
             confThreshold = DEFAULT_CONF_THRESHOLD
@@ -132,6 +151,24 @@ object AppSettings {
     fun saveResolution(context: Context, res: String) {
         resolution = res
         prefs(context).edit { putString(KEY_RESOLUTION, res) }
+    }
+
+    fun saveVisitorAlerts(context: Context, unknown: Boolean, known: Boolean, objects: Boolean, knownObjects: Boolean) {
+        alertUnknown = unknown
+        alertKnown = known
+        alertObjects = objects
+        alertKnownObjects = knownObjects
+        prefs(context).edit {
+            putBoolean(KEY_ALERT_UNKNOWN, unknown)
+            putBoolean(KEY_ALERT_KNOWN, known)
+            putBoolean(KEY_ALERT_OBJECTS, objects)
+            putBoolean(KEY_ALERT_KNOWN_OBJECTS, knownObjects)
+        }
+    }
+
+    fun saveStaircaseRoi(context: Context, roi: String) {
+        staircaseRoi = roi
+        prefs(context).edit { putString("staircase_roi", roi) }
     }
 
     fun getTelegramToken(context: Context): String {

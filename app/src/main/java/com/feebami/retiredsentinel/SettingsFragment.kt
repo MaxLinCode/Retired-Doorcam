@@ -63,6 +63,11 @@ class SettingsFragment : Fragment() {
             binding.dropdownResolution.setText(AppSettings.resolution, false)
 
             binding.switchTelegramAlerts.isChecked = AppSettings.telegramEnabled
+            binding.switchAlertUnknown.isChecked = AppSettings.alertUnknown
+            binding.switchAlertKnown.isChecked = AppSettings.alertKnown
+            binding.switchAlertObjects.isChecked = AppSettings.alertObjects
+            binding.switchAlertKnownObjects.isChecked = AppSettings.alertKnownObjects
+            binding.editStairRoi.setText(AppSettings.staircaseRoi)
             binding.layoutTelegramConfig.visibility = if (AppSettings.telegramEnabled) View.VISIBLE else View.GONE
             binding.editTelegramToken.setText(AppSettings.getTelegramToken(requireContext()))
             binding.editTelegramChatId.setText(AppSettings.getTelegramChatId(requireContext()))
@@ -157,11 +162,43 @@ class SettingsFragment : Fragment() {
             }
         })
 
+        binding.buttonTestTelegram.setOnClickListener {
+            binding.buttonTestTelegram.isEnabled = false
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            TelegramAlertSender().sendTestMessage(requireContext()) { status ->
+                mainHandler.post {
+                    _binding?.let { current ->
+                        current.textTelegramStatus.text = status
+                        current.buttonTestTelegram.isEnabled = !status.endsWith("…")
+                    }
+                }
+            }
+        }
+
         // 4. Setup Telegram Alerts toggle and config
         binding.switchTelegramAlerts.setOnCheckedChangeListener { _, isChecked ->
             AppSettings.saveTelegramEnabled(requireContext(), isChecked)
             binding.layoutTelegramConfig.visibility = if (isChecked) View.VISIBLE else View.GONE
         }
+        val saveVisitorRules = {
+            AppSettings.saveVisitorAlerts(requireContext(), binding.switchAlertUnknown.isChecked,
+                binding.switchAlertKnown.isChecked, binding.switchAlertObjects.isChecked,
+                binding.switchAlertKnownObjects.isChecked)
+        }
+        listOf(binding.switchAlertUnknown, binding.switchAlertKnown,
+            binding.switchAlertObjects, binding.switchAlertKnownObjects).forEach {
+            it.setOnCheckedChangeListener { _, _ -> saveVisitorRules() }
+        }
+        binding.editStairRoi.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val values = s?.toString()?.split(",")?.mapNotNull { it.trim().toFloatOrNull() }
+                if (values?.size == 4 && values.all { it in 0f..1f } && values[0] < values[2] && values[1] < values[3]) {
+                    AppSettings.saveStaircaseRoi(requireContext(), values.joinToString(","))
+                } else if (s.isNullOrBlank()) AppSettings.saveStaircaseRoi(requireContext(), "")
+            }
+        })
         binding.editTelegramToken.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}

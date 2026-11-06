@@ -20,6 +20,29 @@ class PersonDetector(
     private val modelName: String = "yolo26n_float32.tflite"
 ) {
 
+    private var nextTrackId = 1
+    private var lastTracks: List<Pair<Int, BoundingBox>> = emptyList()
+
+    /** Greedy center-distance association for stable IDs across adjacent frames. */
+    fun trackId(box: BoundingBox): Int = lastTracks.minByOrNull { (_, old) ->
+        kotlin.math.abs(box.cx - old.cx) + kotlin.math.abs(box.cy - old.cy)
+    }?.takeIf { (_, old) -> kotlin.math.abs(box.cx - old.cx) + kotlin.math.abs(box.cy - old.cy) < box.h * 0.8f }
+        ?.first ?: nextTrackId++
+    fun tracksFor(boxes: List<BoundingBox>): List<Pair<Int, BoundingBox>> {
+        val current = mutableListOf<Pair<Int, BoundingBox>>()
+        val used = mutableSetOf<Int>()
+        for (box in boxes) {
+            val match = lastTracks.filter { it.first !in used }.minByOrNull { (_, old) ->
+                kotlin.math.abs(box.cx - old.cx) + kotlin.math.abs(box.cy - old.cy)
+            }?.takeIf { (_, old) -> kotlin.math.abs(box.cx - old.cx) + kotlin.math.abs(box.cy - old.cy) < box.h * 0.8f }
+            val id = match?.first ?: nextTrackId++
+            used += id
+            current += id to box
+        }
+        lastTracks = current
+        return current
+    }
+
     private var interpreter: Interpreter? = null
     private var inputImageWidth = 0
     private var inputImageHeight = 0
